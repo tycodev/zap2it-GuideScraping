@@ -424,6 +424,8 @@ if args.web is not None and args.web:
                 self.end_headers()
                 with open(optGuideFile,"rb") as file:
                     self.wfile.write(file.read())
+            elif self.path == '/health'
+                self.send_response(200)
             else:
                 self.send_response(404)
                 self.end_headers()
