@@ -4,31 +4,35 @@ import urllib.parse, urllib.request, urllib.error
 import time, datetime
 import xml.dom.minidom
 import sys, os, argparse
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 #Use Globals to track state of the guide
 ADDED_CHANNELS = []
 ADDED_EVENTS = []
 
 class Zap2ItGuideScrape():
-
     def __init__(self,configLocation="./zap2itconfig.ini",outputFile="xmlguide.xmltv"):
         self.confLocation = configLocation
         self.outputFile=outputFile
         if not os.path.exists(self.confLocation):
-            print("Error: " + self.confLocation + " does not exist.")
-            print("Copy config.ini.dist to config.ini and update the settings to match your zap2it account")
+            logging.warn("Error: %s does not exist.", self.confLocation)
+            logging.info("Copy config.ini.dist to config.ini and update the settings to match your zap2it account")
             exit(1)
-        print("Loading config: ", self.confLocation, " and outputting: ", outputFile)
+        logging.info("Loading config: %s and outputting: %s", self.confLocation, outputFile)
 
         self.config = configparser.ConfigParser()
         config = self.config.read(self.confLocation)
         if config == []:
-            print("Failed to read config: " + self.confLocation)
-            print("Check file permissions")
+            logging.error("Failed to read config, check permissions: %s", self.confLocation)
             exit(1)
         self.lang = self.config.get("prefs","lang", fallback="en")
-
-        self.zapToken = ""
+        self.zapToken = ""    
     def BuildAuthRequest(self):
         url = "https://tvlistings.gracenote.com/api/user/login"
         parameters = {
@@ -48,8 +52,7 @@ class Zap2ItGuideScrape():
         try:
             authResponse = urllib.request.urlopen(authRequest).read()
         except urllib.error.URLError as e:
-            print("Error connecting to tvlistings.gracenote.com")
-            print(e.reason)
+            logging.error("Error connecting to tvlistings.gracenote.com: %s", e.reason)
             exit(1)
         authFormVars = json.loads(authResponse)
         self.zapTocken = authFormVars["token"]
@@ -67,22 +70,21 @@ class Zap2ItGuideScrape():
     def FindID(self,zipCode):
         idRequest = self.BuildIDRequest(zipCode)
         try:
-            print("Loading provider ID data from: ",idRequest.full_url)
+            logging.info("Loading provider ID data from: %s", idRequest.full_url)
             idResponse = urllib.request.urlopen(idRequest).read()
         except urllib.error.URLError as e:
-            print("Error loading provider IDs:")
-            print(e.reason)
+            logging.error("Error loading provider IDs: %s", e.reason)
             exit(1)
         idVars = json.loads(idResponse)
-        print(f'{"type":<15}|{"name":<40}|{"location":<15}|',end='')
-        print(f'{"headendID":<15}|{"lineupId":<25}|{"device":<15}')
+        logging.info(f'{"type":<15}|{"name":<40}|{"location":<15}|',end='')
+        logging.info(f'{"headendID":<15}|{"lineupId":<25}|{"device":<15}')
         for provider in idVars["Providers"]:
-            print(f'{provider["type"]:<15}|',end='')
-            print(f'{provider["name"]:<40}|',end='')
-            print(f'{provider["location"]:<15}|',end='')
-            print(f'{provider["headendId"]:<15}|',end='')
-            print(f'{provider["lineupId"]:<25}|',end='')
-            print(f'{provider["device"]:<15}')
+            logging.info(f'{provider["type"]:<15}|',end='')
+            logging.info(f'{provider["name"]:<40}|',end='')
+            logging.info(f'{provider["location"]:<15}|',end='')
+            logging.info(f'{provider["headendId"]:<15}|',end='')
+            logging.info(f'{provider["lineupId"]:<25}|',end='')
+            logging.info(f'{provider["device"]:<15}')
 
     def BuildDataRequest(self,currentTime,zipCode):
         #Defaults
@@ -113,8 +115,8 @@ class Zap2ItGuideScrape():
         return req
     def GetData(self,time,zipCode):
         request = self.BuildDataRequest(time,zipCode)
-        print("Load Guide for time: ",str(time)," :: ",zipCode)
-        #print(request.full_url)
+        logging.info("Load Guide for time: %s :: %s",str(time),zipCode)
+        #logging.info(request.full_url)
         response = urllib.request.urlopen(request).read()
         return json.loads(response)
     def AddChannelsToGuide(self, json):
@@ -129,7 +131,7 @@ class Zap2ItGuideScrape():
                 if channel["channelId"] not in favoriteChannels:
                     continue
             if channel["channelId"] in ADDED_CHANNELS:
-                print("Duplicate Channel: ",channel["channelId"])
+                logging.info("Duplicate Channel: %s" ,channel["channelId"])
                 continue
             else:
                 self.rootEl.appendChild(self.BuildChannelXML(channel))
@@ -201,7 +203,7 @@ class Zap2ItGuideScrape():
             if event["program"]["episode"] is not None:
                 episode = str(event["program"]["episode"])
         except KeyError:
-            print("No Season for:" + event["program"]["title"])
+            logging.info("No Season for: %s", event["program"]["title"])
 
         for category in event["filter"]:
             categoryEl = self.CreateElementWithData("category",category.replace('filter-',''))
@@ -286,8 +288,8 @@ class Zap2ItGuideScrape():
         try:
             days = int(self.config.get("prefs","guideDays"))
         except:
-            print("guideDays not in config. using default: 14")
-        print("Loading guide data for ",days," days")
+            logging.info("guideDays not in config. using default: 14")
+        logging.info("Loading guide data for %s days", days)
         endTimeStamp = currentTimestamp + (60 * 60 * 24 * days)
         return (currentTimestamp,endTimeStamp)
     def BuildRootEl(self):
@@ -347,7 +349,7 @@ class Zap2ItGuideScrape():
         for zipCode in loadZipCodes():
             zipCode = str(zipCode)
             zipCode = zipCode.strip()
-            print("Loading available channels for: ",zipCode)
+            logging.info("Loading available channels for: %s", zipCode)
             my_json = guide.GetData(time.time(), zipCode)
             allJSON.append(my_json)
         channelList = {}
@@ -356,10 +358,10 @@ class Zap2ItGuideScrape():
                 chanid = channel.get("channelId")
                 chanid = int(chanid)
                 channelList[chanid] = channel.get("callSign")  + "::" + channel.get("channelNo")
-        print(f'{"CHAN ID":<15}|{"name":<40}|',end='')
+        logging.info(f'{"CHAN ID":<15}|{"name":<40}|',end='')
         for channel in channelList:
-            print(f'{channel:<15}|',end='')
-            print(f'{channelList[channel]:<40}')
+            logging.info(f'{channel:<15}|',end='')
+            logging.info(f'{channelList[channel]:<40}')
 
 def loadZipCodes():
     zipCodes = guide.config.get("prefs","zipCode")
@@ -369,7 +371,7 @@ def loadZipCodes():
             zipCodes = [zipCodes]
     except json.JSONDecodeError:
         zipCodes = [zipCodes] #Support the old format
-    print("Loaded Zip Codes: ",zipCodes)
+    logging.info("Loaded Zip Codes: %s",zipCodes)
     return zipCodes
 
 
@@ -388,7 +390,7 @@ parser.add_argument("-C","--channels", action="store_true", help='List available
 parser.add_argument("-w","--web", action="store_true", help="Start a webserver at http://localhost:9000 to serve /xmlguide.xmltv")
 
 args = parser.parse_args()
-print(args)
+logging.info("%s", args)
 if args.configfile is not None:
     optConfigFile = args.configfile
 if args.outputfile is not None:
@@ -405,7 +407,7 @@ if args.findid is not None and args.findid:
         zipCode = str(zipCode)
         #strip whitespace
         zipCode = zipCode.strip()
-        print("Finding IDs for: ",zipCode)
+        logging.info("Finding IDs for: %s", zipCode)
         guide.FindID(zipCode)
     sys.exit()
 if args.channels is not None and args.channels:
@@ -436,12 +438,35 @@ if args.web is not None and args.web:
 
     Handler = httpHandler
     with socketserver.TCPServer(("",PORT),Handler) as httpd:
-        print("Serving at port",PORT)
+        logging.info("Serving at port %s",PORT)
+        
+        def guide_data_needs_refresh():
+            try:
+                mod_time = os.path.getmtime(optGuideFile)
+                mod_datetime = datetime.datetime.fromtimestamp(mod_time)
+
+                now = datetime.datetime.now()
+                time_diff = now - mod_datetime
+
+                if time_diff > datetime.timedelta(hours=24):
+                    logging.info("Guide is older than 24 hours.")
+                    return True
+                else:
+                    logging.info("Guide was generated within the last 24 hours.")
+                    return False
+
+            except FileNotFoundError:
+                logging.info("Guide data does not exist.")
+                return True
+        
         def run_guide_build():
             while True:
-                guide.BuildGuide()
-                print("Guide Updated")
-                time.sleep(86400)  # Sleep for 24 hours
+                if guide_data_needs_refresh():
+                    guide.BuildGuide()
+                    logging.info("Guide Refreshed")
+                else:
+                    logging.info("Guide Is Still Valid")
+                time.sleep(60)  
 
         guide_thread = threading.Thread(target=run_guide_build)
         guide_thread.daemon = True
