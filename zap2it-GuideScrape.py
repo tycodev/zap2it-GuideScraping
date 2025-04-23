@@ -53,7 +53,7 @@ class Zap2ItGuideScrape():
             authResponse = urllib.request.urlopen(authRequest).read()
         except urllib.error.URLError as e:
             logging.error("Error connecting to tvlistings.gracenote.com: %s", e.reason)
-            exit(1)
+            raise ValueError(f"Error connecting to tvlistings.gracenote.com: {e.reason}")
         authFormVars = json.loads(authResponse)
         self.zapTocken = authFormVars["token"]
         self.headendid= authFormVars["properties"]["2004"]
@@ -461,11 +461,14 @@ if args.web is not None and args.web:
         
         def run_guide_build():
             while True:
-                if guide_data_needs_refresh():
-                    guide.BuildGuide()
-                    logging.info("Guide Refreshed")
-                else:
-                    logging.info("Guide Is Still Valid")
+                try:
+                    if guide_data_needs_refresh():
+                        guide.BuildGuide()
+                        logging.info("Guide Refreshed")
+                    else:
+                        logging.info("Guide Is Still Valid")
+                except Exception as err:
+                    print(f"Error Refreshing Guide: {err}")
                 time.sleep(60)  
 
         guide_thread = threading.Thread(target=run_guide_build)
