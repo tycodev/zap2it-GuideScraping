@@ -272,6 +272,7 @@ class Zap2ItGuideScrape():
             ratingEl = self.guideXML.createElement("rating")
             valueEl = self.CreateElementWithData("value",event["rating"])
             ratingEl.appendChild(valueEl)
+            programEl.appendChild(ratingEl)
         return programEl
     def BuildXMLDate(self,inTime):
         output = inTime.replace('-','').replace('T','').replace(':','')
