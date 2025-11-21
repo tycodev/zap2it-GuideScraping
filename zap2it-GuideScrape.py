@@ -11,6 +11,12 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+import ssl
+
+# Create unverified SSL context for certificate issues
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
 
 #Use Globals to track state of the guide
 ADDED_CHANNELS = []
@@ -62,7 +68,7 @@ class Zap2ItGuideScrape():
         #Get token from login form
         authRequest = self.BuildAuthRequest()
         try:
-            authResponse = urllib.request.urlopen(authRequest).read()
+            authResponse = urllib.request.urlopen(authRequest, context=ssl_context).read()
         except urllib.error.URLError as e:
             logging.error("Error connecting to tvlistings.gracenote.com: %s", e.reason)
             raise ValueError(f"Error connecting to tvlistings.gracenote.com: {e.reason}")
@@ -82,7 +88,7 @@ class Zap2ItGuideScrape():
         idRequest = self.BuildIDRequest(zipCode)
         try:
             logging.info("Loading provider ID data from: %s", idRequest.full_url)
-            idResponse = urllib.request.urlopen(idRequest).read()
+            idResponse = urllib.request.urlopen(idRequest, context=ssl_context).read()
         except urllib.error.URLError as e:
             logging.error("Error loading provider IDs: %s", e.reason)
             exit(1)
@@ -129,8 +135,7 @@ class Zap2ItGuideScrape():
         print("Building data for {time} :: {zipCode}")
         request = self.BuildDataRequest(time,zipCode)
         logging.info("Load Guide for time: %s :: %s",str(time),zipCode)
-        #logging.info(request.full_url)
-        response = urllib.request.urlopen(request).read()
+        response = urllib.request.urlopen(request, context=ssl_context).read()
         return json.loads(response)
     def AddChannelsToGuide(self, json):
         global ADDED_CHANNELS
@@ -269,6 +274,7 @@ class Zap2ItGuideScrape():
             ratingEl = self.guideXML.createElement("rating")
             valueEl = self.CreateElementWithData("value",event["rating"])
             ratingEl.appendChild(valueEl)
+            programEl.appendChild(ratingEl)
         return programEl
     def BuildXMLDate(self,inTime):
         output = inTime.replace('-','').replace('T','').replace(':','')
@@ -316,6 +322,7 @@ class Zap2ItGuideScrape():
         self.rootEl.setAttribute("generator-info-url","daniel@widrick.net")
     def BuildGuide(self):
         self.Authenticate()
+        time.sleep(5)
         self.guideXML = xml.dom.minidom.Document()
         impl = xml.dom.minidom.getDOMImplementation()
         doctype = impl.createDocumentType("tv","","xmltv.dtd")
@@ -331,6 +338,7 @@ class Zap2ItGuideScrape():
                 zipCode = str(zipCode)
                 zipCode = zipCode.strip()
                 zip_json = self.GetData(loopTime,zipCode)
+                time.sleep(5)
                 if addChannels:
                     self.AddChannelsToGuide(zip_json)   
                 self.AddEventsToGuide(zip_json)
