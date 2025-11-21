@@ -324,9 +324,6 @@ class Zap2ItGuideScrape():
         self.Authenticate()
         time.sleep(5)
         self.guideXML = xml.dom.minidom.Document()
-        impl = xml.dom.minidom.getDOMImplementation()
-        doctype = impl.createDocumentType("tv","","xmltv.dtd")
-        self.guideXML.appendChild(doctype)
         self.BuildRootEl()
 
         addChannels = True;
